@@ -1,65 +1,154 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400"></a></p>
+# How to run the project
+- rename .env.example to .env
+- add db connection in .env
+```sh
+composer install
+php artisan migrate 
+php artisan serve
+```
+- we got to start the websocket server too,it willl be on 8090 port
+```sh
+php artisan websocket:init
+```
+### Vist the link
+- register user and login
+- open QR scanner using http://baseurl/qrscanner
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+### Open incognito tab in browser
+- open http://baseurl/qrstest
+click on 'login with qr' button
+qr code comes up save the qr as image.
 
-## About Laravel
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- In your QR scanner tab
+import the QR image(for localhost only), it will be scanned.
+OR use the camera to scan(probably will work on prod)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
-## Learning Laravel
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+# Show QR Login
+### Display QR code 
+#### Ping Websocket connection
+- Show QR code in frontend using the msg in websocket
+1. onconnect send type: "server",step 0,will receive a url with token,make QR code of the url
+2. look for step 2 which means user's hash id recieved
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1500 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+#### Ping Http for login
+- Send ajax request with the hashed id
+3. send it and on success login, redirect to dashboard
 
-## Laravel Sponsors
+## Routes
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+### 1.QR test page: Ping websocket from js
+```sh
+method: "Websocket"
+url: "ws://localhost:8090"
+```
+on success response
+```js
+ws.onopen = function() {
+    ws.send(JSON.stringify({
+        type: "server",
+        code: 0,
+        step: 0
+    }));
 
-### Premium Partners
+};
+ws.onmessage = function(evt) {
+    const data = JSON.parse(event.data);
+    //console.log("datafromservver",data);
+    const step = data.data && data.data.step;
+    if (step === 0) {
+        //Generate QR Code and show to user.
+        $("#qrcode").qrcode({
+            "width": 100,
+            "height": 100,
+            "text": data.data.url
+        });
+        console.log("QR code generated successfully");
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[CMS Max](https://www.cmsmax.com/)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
+    } else if (step === 2) {
+        const {
+            username,
+            token
+        } = data.data;
+        //localStorage.setItem(TOKEN_KEY, token);
 
-## Contributing
+        $("#qrcode").html("");
+        ws.close();
+        //alert(username);
+        is_loginfun(username);
+    }
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
 
-## Code of Conduct
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+};
+```
+### 2. Http Login : is_loginfun(username);
+```sh
+var key = username;
+method: "POST"
+url: "web/loginws",
+data:{key:key}
+```
+on success response
+```js
+success: function(data) {
+    if (data.status == 1) {
+        var uid = data.jwt;
+        var user = data.user;
+        console.log("user", user);
 
-## Security Vulnerabilities
+        console.log("login successfull", uid);
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+        alert("login successfull", uid);
+        window.location.href = '/';
 
-## License
+    } else if (data.status == 2) {
+        alert(data.msg);
+    }
+}
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# QR scanner App
+## Scanner to be accessed by Authenticated User
+### Scan QR code 
+#### Ping Websocket connection
+- Scan QR code in frontend using the msg in websocket
+1. onconnect send type: "client", step 0, with token in decoded qr image 
+2. look for step 1 and send user's hash id to token
+
+```sh
+method: "Websocket"
+url: "ws://localhost:8090"
+```
+on success response
+```js
+ws.onopen = function() {
+    console.log("on WS open we sent the token to server");
+    let params = (new URL(url)).searchParams;
+    let urltoken = params.get('t');
+    ws.send(JSON.stringify({
+        type: "client",
+        step: 0,
+        token: urltoken
+    }));
+
+};
+ws.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    console.log(" client body", data);
+    const step = data.data && data.data.step;
+    if (step === 0) {
+        console.log("step", step);
+    } else if (step === 1) {
+        ws.send(JSON.stringify({
+            type: "client",
+            step: 1,
+            username: '{{$hashedid}}'
+        }));
+    }
+
+}
+```
